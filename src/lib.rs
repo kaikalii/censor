@@ -9,6 +9,9 @@ This is done by subverting common profanity filter workarounds, such as insertin
 spaces or special characters in between letters (`F_U_C_K`) or using similar-looking
 characters in the place of others (`SH!T`).
 
+Keep in mind though, that this filter is far from perfect. If people *really* want
+to swear, they can get through this filter.
+
 # Usage
 The [`Censor`](enum.Censor.html) enum is the main object used for censoring strings.
 It is essentially a set of words to be filtered out. The [`Standard`](enum.Censor.html#variant.Standard)
@@ -28,10 +31,15 @@ assert!(censor.check("FuCk"));
 assert!(censor.check("fμ¢κ"));
 assert!(censor.check("f!u!c!k"));
 assert!(censor.check("F_u c_K"));
+assert!(censor.check("fuuuuuuuck"));
+
+assert!(!censor.check("fluff truck"));
+assert!(!censor.check("fukushima"));
 
 // Use `Censor::censor` to censor a string with asterisks
 assert_eq!("*_*_*_*_*", censor.censor("₱_û_$_$_¥"));
-assert_eq!("**** that **** dude", censor.censor("fuck that shit dude"));
+assert_eq!("**** that ****, dude", censor.censor("fuck that shit, dude"));
+assert_eq!("******* yoouuu", censor.censor("fuuuuck yoouuu"));
 
 // Use `Censor::replace` to pick the replacement character
 assert_eq!("JJJJ the letter J", censor.replace("fuck the letter J", 'J'));
@@ -45,8 +53,13 @@ assert_eq!(
 );
 
 // You can remove words from `Censor`s too
-let censor = Standard - "fuck";
-assert!(!censor.check("I don't care if people say 'fuck'"));
+let censor = Standard - "ass";
+assert!(!censor.check("I don't care if people say 'ass'"));
+
+// Overlapping censored words are fully censored
+let censor = Standard + Sex;
+assert_eq!("**********", censor.censor("shititties"));
+assert_eq!("*************", censor.censor("blowjoboobies"))
 ```
 */
 
@@ -122,6 +135,7 @@ word_set!(
     "cock",
     "cunt",
     "fag",
+    "fagot",
     "faggot",
     "fuck",
     "nigger",
@@ -147,6 +161,8 @@ word_set!(
     "asshole",
     "blowjob",
     "boob",
+    "boobie",
+    "boobies",
     "boobjob",
     "breast",
     "clitoris",
@@ -172,6 +188,7 @@ word_set!(
     "sex",
     "tits",
     "tittie",
+    "titties",
     "titty",
     "twat",
     "vagina",
@@ -280,6 +297,7 @@ impl Censor {
         map: &HashMap<usize, usize>,
         sizes: &BTreeSet<usize>,
     ) -> HashSet<usize> {
+        let (deduped, dd_map) = dedup_string(text);
         let mut set = HashSet::new();
         for &size in sizes.iter().rev() {
             for word in self.list().filter(|s| s.len() == size) {
@@ -288,6 +306,18 @@ impl Censor {
                         let k = i + j;
                         if let Some(k) = map.get(&k) {
                             set.insert(*k);
+                        }
+                    }
+                }
+                for (i, _) in deduped.match_indices(word.as_str()) {
+                    for j in 0..word.len() {
+                        let k = i + j;
+                        if let Some(ls) = dd_map.get(&k) {
+                            for l in ls {
+                                if let Some(k) = map.get(l) {
+                                    set.insert(*k);
+                                }
+                            }
                         }
                     }
                 }
@@ -428,4 +458,22 @@ fn remove_non_alpha(text: &str) -> (String, HashMap<usize, usize>) {
         map.insert(i, j);
     }
     (output, map)
+}
+
+fn dedup_string(s: &str) -> (String, HashMap<usize, Vec<usize>>) {
+    let mut last = None;
+    let mut res = String::new();
+    let mut map = HashMap::new();
+    let mut j = 0;
+    for (i, c) in s.chars().enumerate() {
+        if last.map(|l| l != c).unwrap_or(true) {
+            res.push(c);
+            map.entry(j).or_insert_with(Vec::new).push(i);
+            j += 1;
+        } else {
+            map.entry(j).or_insert_with(Vec::new).push(i);
+        }
+        last = Some(c);
+    }
+    (res, map)
 }
