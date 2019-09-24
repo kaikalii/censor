@@ -25,12 +25,12 @@ let censor = Censor::Standard;
 assert!(censor.check("fuck"));
 assert!(censor.check("FUCK"));
 assert!(censor.check("FuCk"));
-assert!(censor.check("fu¢k"));
+assert!(censor.check("fμ¢κ"));
 assert!(censor.check("f!u!c!k"));
 assert!(censor.check("F_u c_K"));
 
 // Use `Censor::censor` to censor a string with asterisks
-assert_eq!("*_*_*_*_*", censor.censor("p_u_$_$_¥"));
+assert_eq!("*_*_*_*_*", censor.censor("₱_û_$_$_¥"));
 assert_eq!("**** that **** dude", censor.censor("fuck that shit dude"));
 
 // Use `Censor::replace` to pick the replacement character
@@ -63,19 +63,33 @@ static CHAR_ALIASES: Lazy<HashMap<char, char>> = Lazy::new(|| {
     for c in b'A'..=b'Z' {
         map.insert(c as char, (c + CASE_DIFF) as char);
     }
-    map.insert('$', 's');
-    map.insert('4', 'a');
-    map.insert('@', 'a');
-    map.insert('!', 'i');
-    map.insert('2', 'z');
-    map.insert('0', 'o');
-    map.insert('3', 'e');
-    map.insert('5', 's');
-    map.insert('6', 'g');
-    map.insert('£', 'e');
-    map.insert('€', 'e');
-    map.insert('¢', 'c');
-    map.insert('¥', 'y');
+    macro_rules! alias {
+        ($reduced:literal => $($alias:literal),*) => {
+            $(map.insert($alias, $reduced);)*
+        };
+    }
+    alias!('a' => '4', '@', 'À', 'Á', 'Â', 'Ã', 'Ä', 'Å', 'à', 'á', 'â', 'ã', 'ä', 'å', 'α', 'Α');
+    alias!('b' => 'ß', 'Β', '฿');
+    alias!('c' => '¢', 'ç', 'Ç', '©');
+    alias!('d' => 'Ð', '₫');
+    alias!('e' => '3', '£', '€', 'È', 'É', 'Ê', 'Ë', 'è', 'é', 'ê', 'ë', 'ε', 'Ε', 'Ξ', 'Σ');
+    alias!('g' => '6');
+    alias!('h' => 'Η');
+    alias!('k' => 'κ', 'Κ');
+    alias!('i' => '!', 'Ì', 'Í', 'Î', 'Ï', 'ì', 'í', 'î', 'ï', 'Ι');
+    alias!('m' => 'Μ');
+    alias!('n' => 'ñ', 'Ñ', 'η', 'Ν', 'Π');
+    alias!('o' => '0', 'Ò', 'Ó', 'Ô', 'Õ', 'Ö', 'ò', 'ó', 'ô', 'õ', 'ö', 'Ø', 'ø', 'θ', 'ο', 'σ', 'Θ', 'Ο', 'Φ');
+    alias!('p' => 'ρ', 'Ρ', '₱', '℗', 'Þ', 'þ');
+    alias!('r' => '®');
+    alias!('s' => '5', '$');
+    alias!('t' => 'τ', 'Τ');
+    alias!('u' => 'Ù', 'Ú', 'Û', 'Ü', 'ù', 'ú', 'û', 'ü', 'μ', 'υ');
+    alias!('v' => 'ν');
+    alias!('w' => 'ω', '₩');
+    alias!('x' => '×', 'χ', 'Χ');
+    alias!('y' => '¥', 'Ý', 'ý', 'ÿ', 'γ', 'Υ');
+    alias!('z' => '2', 'Ζ');
     map
 });
 
@@ -243,14 +257,14 @@ impl Censor {
     pub fn bad_chars(&self, text: &str) -> HashSet<usize> {
         let lowercase = text.to_lowercase();
         let sizes: BTreeSet<usize> = self.list().map(|s| s.len()).collect();
-        // Check just alphanumeric
-        let (alphanum_only, alphanum_map) = remove_non_alphanumeric(&lowercase);
+        // Check just alpha
+        let (alphanum_only, alphanum_map) = remove_non_alpha(&lowercase);
         let bad_alphanum_chars = self._bad_chars(&alphanum_only, &alphanum_map, &sizes);
         // Check aliased then without whitespace
         let (alias_ws, alias_ws_map) = remove_whitespace(&alias(&lowercase));
         let bad_alias_ws_chars = self._bad_chars(&alias_ws, &alias_ws_map, &sizes);
-        // Check aliased then just alphanumeric
-        let (alias_alphanum, alias_alphanum_map) = remove_non_alphanumeric(&alias(&lowercase));
+        // Check aliased then just alpha
+        let (alias_alphanum, alias_alphanum_map) = remove_non_alpha(&alias(&lowercase));
         let bad_alias_alphanum_chars =
             self._bad_chars(&alias_alphanum, &alias_alphanum_map, &sizes);
         // Union sets
@@ -401,13 +415,13 @@ fn remove_whitespace(text: &str) -> (String, HashMap<usize, usize>) {
     (output, map)
 }
 
-fn remove_non_alphanumeric(text: &str) -> (String, HashMap<usize, usize>) {
+fn remove_non_alpha(text: &str) -> (String, HashMap<usize, usize>) {
     let mut output = String::new();
     let mut map = HashMap::new();
     for (i, (j, c)) in text
         .chars()
         .enumerate()
-        .filter(|(_, c)| c.is_alphanumeric())
+        .filter(|(_, c)| c.is_alphabetic())
         .enumerate()
     {
         output.push(c);
