@@ -1,10 +1,58 @@
+#![deny(missing_docs)]
+
+/*!
+This crate implements a simple but powerful profanity filter.
+
+While this filter can still be technically subverted, the goal is that by
+the time a profanity gets past the filter, it barely resembles the original word.
+This is done by subverting common profanity filter workarounds, such as inserting
+spaces or special characters in between letters (`F_U_C_K`) or using similar-looking
+characters in the place of others (`SH!T`).
+
+# Usage
+The [`Censor`](enum.Censor.html) enum is the main object used for censoring strings.
+It is essentially a set of words to be filtered out. The [`Standard`](enum.Censor.html#variant.Standard)
+variant contains words that most people consider to be swear words, and is meant to be a good
+baseline for a filter. More sets and individual words can be added with the `+` and `+=`
+operators, and sets and words can be removed with the `-` and `-= operators`.
+
+```
+use censor::*;
+
+let censor = Censor::Standard;
+
+// Use `Censor::check` to check if a string contains a profanity
+assert!(censor.check("fuck"));
+assert!(censor.check("FUCK"));
+assert!(censor.check("FuCk"));
+assert!(censor.check("fu¢k"));
+assert!(censor.check("f!u!c!k"));
+assert!(censor.check("F_u c_K"));
+
+// Use `Censor::censor` to censor a string with asterisks
+assert_eq!("*_*_*_*_*", censor.censor("p_u_$_$_¥"));
+assert_eq!("**** that **** dude", censor.censor("fuck that shit dude"));
+
+// Use `Censor::replace` to pick the replacement character
+assert_eq!("JJJJ the letter J", censor.replace("fuck the letter J", 'J'));
+
+// You can combine `Censor`s and add your own words
+let censor = Standard + Zealous + Sex + "dong";
+
+assert_eq!(
+    "Woops, I dropped my monster ******, that I use for my magnum ****",
+    censor.censor("Woops, I dropped my monster condom, that I use for my magnum dong")
+);
+
+// You can remove words from `Censor`s too
+let censor = Standard - "fuck";
+assert!(!censor.check("I don't care if people say 'fuck'"));
+```
+*/
+
 use std::{
-    borrow::{Borrow, BorrowMut},
-    cmp::Ordering,
     collections::{BTreeSet, HashMap, HashSet},
-    fmt,
     ops::{Add, AddAssign, Sub, SubAssign},
-    ops::{Deref, DerefMut},
 };
 
 use once_cell::sync::Lazy;
@@ -32,11 +80,19 @@ static CHAR_ALIASES: Lazy<HashMap<char, char>> = Lazy::new(|| {
 });
 
 macro_rules! word_set {
-    ($name:ident, $($word:literal),*) => {
-        static $name: Lazy<HashSet<Word>> = Lazy::new(|| {
+    ($doc:literal, $name:ident, $($word:literal),*) => {
+        #[doc = $doc]
+        #[doc = ""]
+        #[doc = "#### List"]
+        $(
+            #[doc = $word]
+            #[doc = ""]
+        )*
+        pub static $name: Lazy<HashSet<String>> = Lazy::new(|| {
             let mut set = HashSet::new();
-            for s in &[$($word),*] {
-                set.insert(Word::from(*s));
+            let words = [$($word),*];
+            for i in 0..words.len() {
+                set.insert(String::from(words[i]));
             }
             set
         });
@@ -44,6 +100,7 @@ macro_rules! word_set {
 }
 
 word_set!(
+    "Words that are profanities by most people's definition",
     STANDARD_WORDS,
     "ass",
     "asshole",
@@ -54,13 +111,23 @@ word_set!(
     "faggot",
     "fuck",
     "nigger",
+    "piss",
     "pussy",
     "shit",
     "twat",
     "whore"
 );
-word_set!(ZEALOUS_WORDS, "crap", "damn", "hell", "suck");
 word_set!(
+    "Words that are profanities only to the zealous",
+    ZEALOUS_WORDS,
+    "crap",
+    "damn",
+    "goddamn",
+    "hell",
+    "suck"
+);
+word_set!(
+    "Words related to sex",
     SEX_WORDS,
     "ass",
     "asshole",
@@ -70,6 +137,7 @@ word_set!(
     "breast",
     "clitoris",
     "cock",
+    "condom",
     "cunnilingus",
     "cunt",
     "dick",
@@ -89,97 +157,42 @@ word_set!(
     "semen",
     "sex",
     "tits",
-    "titties",
+    "tittie",
     "titty",
     "twat",
     "vagina",
     "vulva"
 );
-word_set!(SLUR_WORDS, "fag", "faggot", "gook", "nigger", "spic", "spick");
 
-#[derive(Clone, PartialEq, Eq, Hash, Default)]
-pub struct Word(pub String);
-
-impl fmt::Debug for Word {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        <String as fmt::Debug>::fmt(&self.0, f)
-    }
-}
-
-impl fmt::Display for Word {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        <String as fmt::Display>::fmt(&self.0, f)
-    }
-}
-
-impl<S> From<S> for Word
-where
-    S: Into<String>,
-{
-    fn from(s: S) -> Self {
-        Word(s.into())
-    }
-}
-
-impl Deref for Word {
-    type Target = String;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for Word {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-impl AsRef<String> for Word {
-    fn as_ref(&self) -> &String {
-        &self.0
-    }
-}
-
-impl AsMut<String> for Word {
-    fn as_mut(&mut self) -> &mut String {
-        &mut self.0
-    }
-}
-
-impl Borrow<String> for Word {
-    fn borrow(&self) -> &String {
-        &self.0
-    }
-}
-
-impl BorrowMut<String> for Word {
-    fn borrow_mut(&mut self) -> &mut String {
-        &mut self.0
-    }
-}
-
-impl PartialOrd for Word {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.0
-            .len()
-            .partial_cmp(&other.0.len())
-            .map(Ordering::reverse)
-    }
-}
-
-impl Ord for Word {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.0.len().cmp(&other.0.len()).reverse()
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
+/**
+A collection of words to censor
+*/
+#[derive(Debug, Clone, Eq)]
 pub enum Censor {
+    /**
+    Standard swear words
+
+    For more information, see [`STANDARD_WORDS`](static.STANDARD_WORDS.html)
+    */
     Standard,
+    /**
+    Standard swear words
+
+    Not usually used by itself
+
+    For more information, see [`SEX_WORDS`](static.SEX_WORDS.html)
+    */
     Sex,
+    /**
+    Standard swear words
+
+    Not usually used by itself
+
+    For more information, see [`ZEALOUS_WORDS`](static.ZEALOUS_WORDS.html)
+    */
     Zealous,
-    Slurs,
-    Custom(HashSet<Word>),
+    /// A custom set of words
+    Custom(HashSet<String>),
 }
 
 pub use Censor::*;
@@ -191,23 +204,27 @@ impl Default for Censor {
 }
 
 impl Censor {
-    pub fn bad_chars(&self, text: &str) -> BTreeSet<usize> {
-        let lowercase = text.to_lowercase();
-        // Check just alphanumeric
-        let (alphanum_only, alphanum_map) = remove_non_alphanumeric(&lowercase);
-        let bad_alphanum_chars = self._bad_chars(&alphanum_only, &alphanum_map);
-        // Check aliased and without whitespace
-        let (aliased, aliased_map) = remove_whitespace(&alias(&lowercase));
-        let bad_aliased_chars = self._bad_chars(&aliased, &aliased_map);
-        // Union sets
-        bad_alphanum_chars
-            .union(&bad_aliased_chars)
-            .copied()
-            .collect()
+    /// Create an empty `Censor`
+    pub fn empty() -> Self {
+        Custom(HashSet::new())
     }
+    /// Create a `Censor::Custom`
+    pub fn custom<I, W>(words: I) -> Self
+    where
+        I: IntoIterator<Item = W>,
+        W: Into<String>,
+    {
+        Custom(words.into_iter().map(Into::into).collect())
+    }
+    /// Check if a string contains censored words
     pub fn check(&self, text: &str) -> bool {
         !self.bad_chars(text).is_empty()
     }
+    /// Replace censored words in the string with asterisks (`*`s)
+    pub fn censor(&self, text: &str) -> String {
+        self.replace(text, '*')
+    }
+    /// Replace censored words in the string with a replacement character
     pub fn replace(&self, text: &str, replacement_char: char) -> String {
         let bad_chars = self.bad_chars(text);
         text.chars()
@@ -221,36 +238,68 @@ impl Censor {
             })
             .collect()
     }
-    fn _bad_chars(&self, text: &str, map: &HashMap<usize, usize>) -> BTreeSet<usize> {
-        let mut set = BTreeSet::new();
-        for word in self.set() {
-            for (i, _) in text.match_indices(word.as_ref()) {
-                for j in 0..word.len() {
-                    let k = i + j;
-                    if let Some(k) = map.get(&k) {
-                        set.insert(*k);
+    /// Get a set of the indices of characters in the given string that
+    /// are part of censored words
+    pub fn bad_chars(&self, text: &str) -> HashSet<usize> {
+        let lowercase = text.to_lowercase();
+        let sizes: BTreeSet<usize> = self.list().map(|s| s.len()).collect();
+        // Check just alphanumeric
+        let (alphanum_only, alphanum_map) = remove_non_alphanumeric(&lowercase);
+        let bad_alphanum_chars = self._bad_chars(&alphanum_only, &alphanum_map, &sizes);
+        // Check aliased then without whitespace
+        let (alias_ws, alias_ws_map) = remove_whitespace(&alias(&lowercase));
+        let bad_alias_ws_chars = self._bad_chars(&alias_ws, &alias_ws_map, &sizes);
+        // Check aliased then just alphanumeric
+        let (alias_alphanum, alias_alphanum_map) = remove_non_alphanumeric(&alias(&lowercase));
+        let bad_alias_alphanum_chars =
+            self._bad_chars(&alias_alphanum, &alias_alphanum_map, &sizes);
+        // Union sets
+        bad_alphanum_chars
+            .into_iter()
+            .chain(bad_alias_ws_chars)
+            .chain(bad_alias_alphanum_chars)
+            .collect()
+    }
+    fn _bad_chars(
+        &self,
+        text: &str,
+        map: &HashMap<usize, usize>,
+        sizes: &BTreeSet<usize>,
+    ) -> HashSet<usize> {
+        let mut set = HashSet::new();
+        for &size in sizes.iter().rev() {
+            for word in self.list().filter(|s| s.len() == size) {
+                for (i, _) in text.match_indices(word.as_str()) {
+                    for j in 0..word.len() {
+                        let k = i + j;
+                        if let Some(k) = map.get(&k) {
+                            set.insert(*k);
+                        }
                     }
                 }
             }
         }
         set
     }
-    pub fn set(&self) -> &HashSet<Word> {
+    /// Get a reference to the set used by the `Censor`
+    pub fn set(&self) -> &HashSet<String> {
         match self {
             Standard => &*STANDARD_WORDS,
             Zealous => &*ZEALOUS_WORDS,
             Sex => &*SEX_WORDS,
-            Slurs => &*SLUR_WORDS,
             Custom(words) => words,
         }
     }
-    pub fn list(&self) -> std::collections::hash_set::Iter<Word> {
+    /// Get an iterator over all censored words
+    pub fn list(&self) -> std::collections::hash_set::Iter<String> {
         self.set().iter()
     }
+    /// Find a censored word in the `Censor`. Applies character aliases
     pub fn find(&self, word: &str) -> Option<&str> {
         let word = alias(word);
         self.set().get(&word).map(|w| w.as_str())
     }
+    /// Check if the `Censor` contains a word. Applies character aliases
     pub fn contains(&self, word: &str) -> bool {
         self.find(word).is_some()
     }
@@ -262,9 +311,15 @@ impl AddAssign for Censor {
     }
 }
 
+impl PartialEq for Censor {
+    fn eq(&self, other: &Self) -> bool {
+        self.set() == other.set()
+    }
+}
+
 impl<S> AddAssign<S> for Censor
 where
-    S: Into<Word>,
+    S: Into<String>,
 {
     fn add_assign(&mut self, other: S) {
         *self = Censor::Custom(self.list().cloned().chain(Some(other.into())).collect());
@@ -279,7 +334,7 @@ impl SubAssign for Censor {
 
 impl<S> SubAssign<S> for Censor
 where
-    S: Into<Word>,
+    S: Into<String>,
 {
     fn sub_assign(&mut self, other: S) {
         let other = other.into();
@@ -297,7 +352,7 @@ impl Add for Censor {
 
 impl<S> Add<S> for Censor
 where
-    S: Into<Word>,
+    S: Into<String>,
 {
     type Output = Censor;
     fn add(mut self, other: S) -> Self::Output {
@@ -316,7 +371,7 @@ impl Sub for Censor {
 
 impl<S> Sub<S> for Censor
 where
-    S: Into<Word>,
+    S: Into<String>,
 {
     type Output = Censor;
     fn sub(mut self, other: S) -> Self::Output {
