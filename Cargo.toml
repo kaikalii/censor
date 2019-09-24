@@ -1,8 +1,23 @@
-[package]
-name = "censor"
-version = "0.1.0"
-authors = ["Kai Schmidt <kaikaliischmidt@gmail.com>"]
-edition = "2018"
-
 [dependencies]
-once_cell = "*"
+once_cell = '1.2.0'
+
+[package]
+authors = ['Kai Schmidt <kaikaliischmidt@gmail.com>']
+description = "A simple text profanity filter"
+categories = [
+    'algorithms',
+    'text-processing',
+]
+documentation = 'https://docs.rs/censor'
+edition = '2018'
+keywords = [
+    'swear',
+    'profanity',
+    'filter',
+    'political',
+]
+license = 'MIT'
+name = 'censor'
+reademe = 'readme.md'
+repository = 'https://github.com/kaikalii/censor'
+version = '0.1.0'
