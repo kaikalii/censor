@@ -251,20 +251,31 @@ impl Censor {
     }
     /// Check if a string contains censored words
     pub fn check(&self, text: &str) -> bool {
-        !self.bad_chars(text).is_empty()
+        !self.bad_chars(text, 0, 0).is_empty()
     }
     /// Replace censored words in the string with asterisks (`*`s)
     pub fn censor(&self, text: &str) -> String {
-        self.replace(text, '*')
+        self.replace(text, "*", 0, 0)
     }
-    /// Replace censored words in the string with a replacement character
-    pub fn replace(&self, text: &str, replacement_char: char) -> String {
-        let bad_chars = self.bad_chars(text);
+    /// Replace censored words in the string with characters from a grawlix (#?!@$) with offsets (f**k)
+    pub fn censor_with_grawlix_and_offsets(&self, text: &str, grawlix: &str, start_offset: usize, end_offset: usize) -> String {
+        self.replace(text, grawlix, start_offset, end_offset)
+    }
+    /// Replace censored words in the string with characters from a 'grawlix' string (#?!@$)
+    pub fn replace(&self, text: &str, grawlix: &str, start_offset: usize, end_offset: usize) -> String {
+        let graw_chars: Vec<char> = grawlix.chars().collect();
+        let mut graw_offset: usize = 0;
+
+        let bad_chars = self.bad_chars(text, start_offset, end_offset);
         text.chars()
             .enumerate()
             .map(|(i, c)| {
                 if bad_chars.contains(&i) {
-                    replacement_char
+                    graw_offset += 1;
+                    // Wrap the grawlix string
+                    if graw_offset == graw_chars.len() { graw_offset = 0 }
+
+                    graw_chars[graw_offset]
                 } else {
                     c
                 }
@@ -273,19 +284,19 @@ impl Censor {
     }
     /// Get a set of the indices of characters in the given string that
     /// are part of censored words
-    pub fn bad_chars(&self, text: &str) -> HashSet<usize> {
+    pub fn bad_chars(&self, text: &str, start_offset: usize, end_offset: usize) -> HashSet<usize> {
         let lowercase = text.to_lowercase();
         let sizes: BTreeSet<usize> = self.list().map(|s| s.len()).collect();
         // Check just alpha
         let (alphanum_only, alphanum_map) = remove_non_alpha(&lowercase);
-        let bad_alphanum_chars = self._bad_chars(&alphanum_only, &alphanum_map, &sizes);
+        let bad_alphanum_chars = self._bad_chars(&alphanum_only, &alphanum_map, &sizes, start_offset, end_offset);
         // Check aliased then without whitespace
         let (alias_ws, alias_ws_map) = remove_whitespace(&alias(&lowercase));
-        let bad_alias_ws_chars = self._bad_chars(&alias_ws, &alias_ws_map, &sizes);
+        let bad_alias_ws_chars = self._bad_chars(&alias_ws, &alias_ws_map, &sizes, start_offset, end_offset);
         // Check aliased then just alpha
         let (alias_alphanum, alias_alphanum_map) = remove_non_alpha(&alias(&lowercase));
         let bad_alias_alphanum_chars =
-            self._bad_chars(&alias_alphanum, &alias_alphanum_map, &sizes);
+            self._bad_chars(&alias_alphanum, &alias_alphanum_map, &sizes, start_offset, end_offset);
         // Union sets
         bad_alphanum_chars
             .into_iter()
@@ -298,13 +309,15 @@ impl Censor {
         text: &str,
         map: &HashMap<usize, usize>,
         sizes: &BTreeSet<usize>,
+        start_offset: usize,
+        end_offset: usize
     ) -> HashSet<usize> {
         let (deduped, dd_map) = dedup_string(text);
         let mut set = HashSet::new();
         for &size in sizes.iter().rev() {
             for word in self.list().filter(|s| s.len() == size) {
                 for (i, _) in text.match_indices(word.as_str()) {
-                    for j in 0..word.len() {
+                    for j in start_offset..word.len() - end_offset {
                         let k = i + j;
                         if let Some(k) = map.get(&k) {
                             set.insert(*k);
@@ -312,7 +325,7 @@ impl Censor {
                     }
                 }
                 for (i, _) in deduped.match_indices(word.as_str()) {
-                    for j in 0..word.len() {
+                    for j in start_offset..word.len() - end_offset {
                         let k = i + j;
                         if let Some(ls) = dd_map.get(&k) {
                             for l in ls {
