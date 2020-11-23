@@ -179,6 +179,8 @@ word_set!(
     "foreskin",
     "handjob",
     "labia",
+    "masturbate",
+    "masturbation",
     "masterbate",
     "masterbation",
     "penis",
