@@ -89,7 +89,7 @@ static CHAR_ALIASES: Lazy<HashMap<char, char>> = Lazy::new(|| {
     alias!('g' => '6');
     alias!('h' => 'Η');
     alias!('k' => 'κ', 'Κ');
-    alias!('i' => '!', 'Ì', 'Í', 'Î', 'Ï', 'ì', 'í', 'î', 'ï', 'Ι');
+    alias!('i' => '1', '|', '!', 'Ì', 'Í', 'Î', 'Ï', 'ì', 'í', 'î', 'ï', 'Ι');
     alias!('m' => 'Μ');
     alias!('n' => 'ñ', 'Ñ', 'η', 'Ν', 'Π');
     alias!('o' => '0', 'Ò', 'Ó', 'Ô', 'Õ', 'Ö', 'ò', 'ó', 'ô', 'õ', 'ö', 'Ø', 'ø', 'θ', 'ο', 'σ', 'Θ', 'Ο', 'Φ');
@@ -179,6 +179,8 @@ word_set!(
     "foreskin",
     "handjob",
     "labia",
+    "masturbate",
+    "masturbation",
     "masterbate",
     "masterbation",
     "penis",
