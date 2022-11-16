@@ -258,7 +258,7 @@ impl Censor {
         self.replace(text, "*")
     }
     // count occurances of censored words
-    pub fn count(&self, text: &str) -> usize {
+    pub fn count(&self, text: &str) -> i32 {
         let sentence = self.replace(text, "*");
         sentence.split(" ").filter(|&w| w.contains("*")).count().try_into().unwrap()
     }
