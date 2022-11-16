@@ -253,6 +253,34 @@ impl Censor {
     pub fn check(&self, text: &str) -> bool {
         !self.bad_chars(text, 0, 0).is_empty()
     }
+    /// Count the number of censored words in a string
+    ///
+    /// # Example
+    /// ```
+    /// use censor::*;
+    ///
+    /// let censor = Censor::Standard;
+    ///
+    /// assert_eq!(0, censor.count("dog"));
+    /// assert_eq!(1, censor.count("motherfucker"));
+    /// assert_eq!(2, censor.count("bitch ass guy"));
+    /// ```
+    pub fn count(&self, text: &str) -> usize {
+        let bad_chars = self.bad_chars(text, 0, 0);
+        let mut count = 0;
+        let mut in_censored = false;
+        for i in 0..text.chars().count() {
+            if bad_chars.contains(&i) {
+                if !in_censored {
+                    in_censored = true;
+                    count += 1;
+                }
+            } else {
+                in_censored = false;
+            }
+        }
+        count
+    }
     /// Replace censored words in the string with asterisks (`*`s)
     pub fn censor(&self, text: &str) -> String {
         self.replace(text, "*")
