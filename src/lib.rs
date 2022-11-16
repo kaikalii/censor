@@ -1,4 +1,4 @@
-#![deny(missing_docs)]
+#![warn(missing_docs)]
 
 /*!
 This crate implements a simple but powerful profanity filter.
@@ -13,8 +13,8 @@ Keep in mind though, that this filter is far from perfect. If people *really* wa
 to swear, they can get through this filter.
 
 # Usage
-The [`Censor`](enum.Censor.html) enum is the main object used for censoring strings.
-It is essentially a set of words to be filtered out. The [`Standard`](enum.Censor.html#variant.Standard)
+The [`Censor`] enum is the main object used for censoring strings.
+It is essentially a set of words to be filtered out. The [`Standard`]
 variant contains words that most people consider to be swear words, and is meant to be a good
 baseline for a filter. More sets and individual words can be added with the `+` and `+=`
 operators, and sets and words can be removed with the `-` and `-= operators`.
@@ -205,23 +205,23 @@ pub enum Censor {
     /**
     Standard swear words
 
-    For more information, see [`STANDARD_WORDS`](static.STANDARD_WORDS.html)
+    For more information, see [`STANDARD_WORDS`]
     */
     Standard,
     /**
-    Standard swear words
+    Words related to sex
 
     Not usually used by itself
 
-    For more information, see [`SEX_WORDS`](static.SEX_WORDS.html)
+    For more information, see [`SEX_WORDS`]
     */
     Sex,
     /**
-    Standard swear words
+    Words that are profanities only to the zealous
 
     Not usually used by itself
 
-    For more information, see [`ZEALOUS_WORDS`](static.ZEALOUS_WORDS.html)
+    For more information, see [`ZEALOUS_WORDS`]
     */
     Zealous,
     /// A custom set of words
@@ -323,11 +323,7 @@ impl Censor {
             .map(|(i, c)| {
                 if bad_chars.contains(&i) {
                     let graw = graw_chars[graw_offset];
-                    graw_offset += 1;
-                    // Wrap the grawlix string
-                    if graw_offset == graw_chars.len() {
-                        graw_offset = 0
-                    }
+                    graw_offset = (graw_offset + 1) % graw_chars.len();
                     graw
                 } else {
                     c
@@ -408,9 +404,9 @@ impl Censor {
     /// Get a reference to the set used by the `Censor`
     pub fn set(&self) -> &HashSet<String> {
         match self {
-            Standard => &*STANDARD_WORDS,
-            Zealous => &*ZEALOUS_WORDS,
-            Sex => &*SEX_WORDS,
+            Standard => &STANDARD_WORDS,
+            Zealous => &ZEALOUS_WORDS,
+            Sex => &SEX_WORDS,
             Custom(words) => words,
         }
     }
