@@ -257,6 +257,11 @@ impl Censor {
     pub fn censor(&self, text: &str) -> String {
         self.replace(text, "*")
     }
+    // count occurances of censored words
+    pub fn count(&self, text: &str) -> usize {
+        let sentence = self.replace(text, "*");
+        sentence.split(" ").filter(|&w| w.contains("*")).count().try_into().unwrap()
+    }
     /**
     Replace censored words in the string with characters from a 'grawlix' string (#?!@$)
 
